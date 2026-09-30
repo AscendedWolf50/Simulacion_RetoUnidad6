@@ -29,8 +29,8 @@ body, html {
   color: #00ffff;
   text-shadow: 0 0 10px #00ffff;
   pointer-events: auto;
-  background: rgba(0, 0, 0, 0.75);
-  padding: 16px 20px;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 16px 22px;
   border-left: 4px solid #00ffff;
   border-radius: 4px;
 }
