@@ -7,11 +7,12 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 // --- 1. ESCENA, CÁMARA Y RENDERIZADOR ---
 const canvas = document.getElementById('webgl-canvas');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050508);
-scene.fog = new THREE.FogExp2(0x050508, 0.02);
+scene.background = new THREE.Color(0x0a0c16);
+scene.fog = new THREE.FogExp2(0x0a0c16, 0.012);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 6, 26);
+// Cámara ajustada con plano lejano de 2000 para visualizar hasta el horizonte
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+camera.position.set(0, 8, 30);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -23,41 +24,102 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.maxPolarAngle = Math.PI / 2 - 0.02;
+controls.maxPolarAngle = Math.PI / 2 - 0.01; // Evita que la cámara baje del nivel del suelo
 controls.target.set(0, 3, 0);
 
 // Luces
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+const ambientLight = new THREE.AmbientLight(0x7080a0, 0.85);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
-dirLight.position.set(10, 20, 10);
+const dirLight = new THREE.DirectionalLight(0x99bbff, 1.4);
+dirLight.position.set(12, 35, 12);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-const strikeLight = new THREE.PointLight(0x00aaff, 0, 50);
+const strikeLight = new THREE.PointLight(0x00aaff, 0, 60);
 strikeLight.castShadow = true;
 scene.add(strikeLight);
 
-// Suelo y Monolitos de Escenario
-const floorGeo = new THREE.PlaneGeometry(80, 80);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1a24, roughness: 0.7, metalness: 0.3 });
+// Luz de iluminación interna de nubes en la nueva altitud
+const cloudFlashLight = new THREE.PointLight(0x00aaff, 0, 100);
+cloudFlashLight.position.set(0, 35, 0);
+scene.add(cloudFlashLight);
+
+// --- SUELO INFINITO (2000x2000) Y MONOLITOS DISPERSOS ---
+const floorGeo = new THREE.PlaneGeometry(2000, 2000);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x222636, roughness: 0.6, metalness: 0.2 });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
 const boxGeo = new THREE.BoxGeometry(1.2, 2.5, 1.2);
-const boxMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3d, roughness: 0.5, metalness: 0.5 });
-for (let i = 0; i < 25; i++) {
+const boxMat = new THREE.MeshStandardMaterial({ color: 0x363d56, roughness: 0.4, metalness: 0.4 });
+
+// Dispersión de 300 cubos y registro de datos para colisiones físicas
+const numBoxes = 300;
+const boxes = [];
+
+for (let i = 0; i < numBoxes; i++) {
   const box = new THREE.Mesh(boxGeo, boxMat);
   const angle = Math.random() * Math.PI * 2;
-  const radius = 6 + Math.random() * 18;
-  box.position.set(Math.cos(angle) * radius, 1.25, Math.sin(angle) * radius);
+  
+  const radius = 6 + Math.pow(Math.random(), 1.4) * 394;
+  const heightScale = 0.8 + Math.random() * 1.5;
+  const height = 2.5 * heightScale;
+
+  box.scale.set(1, heightScale, 1);
+  box.position.set(
+    Math.cos(angle) * radius,
+    height / 2,
+    Math.sin(angle) * radius
+  );
+  box.rotation.y = Math.random() * Math.PI;
   box.castShadow = true;
   box.receiveShadow = true;
   scene.add(box);
+
+  boxes.push({
+    x: box.position.x,
+    z: box.position.z,
+    height: height,
+    radius: 0.95 // Radio delimitador del cubo para colisión
+  });
 }
+
+// --- NUBES PROCEDURALES DE TORMENTA (ELEVADAS A Y = 32..38) ---
+const cloudGroup = new THREE.Group();
+const cloudGeo = new THREE.DodecahedronGeometry(1, 1);
+const cloudMat = new THREE.MeshStandardMaterial({
+  color: 0x2e384e,
+  roughness: 0.8,
+  metalness: 0.1,
+  transparent: true,
+  opacity: 0.88,
+  flatShading: true
+});
+
+const numClouds = 65;
+const clouds = [];
+
+for (let i = 0; i < numClouds; i++) {
+  const cloud = new THREE.Mesh(cloudGeo, cloudMat);
+  const x = (Math.random() - 0.5) * 140;
+  const y = 32 + Math.random() * 6;
+  const z = (Math.random() - 0.5) * 120;
+
+  const scaleX = 8 + Math.random() * 12;
+  const scaleY = 3 + Math.random() * 4;
+  const scaleZ = 8 + Math.random() * 12;
+
+  cloud.position.set(x, y, z);
+  cloud.scale.set(scaleX, scaleY, scaleZ);
+  cloud.rotation.y = Math.random() * Math.PI * 2;
+
+  cloudGroup.add(cloud);
+  clouds.push({ mesh: cloud, speed: 0.15 + Math.random() * 0.25 });
+}
+scene.add(cloudGroup);
 
 // Post-Procesamiento (UnrealBloomPass)
 const composer = new EffectComposer(renderer);
@@ -88,7 +150,7 @@ const modoTxt = document.getElementById('modo-txt');
 
 // --- 2. SHADERMATERIAL Y GEOMETRÍA DEL RAYO PRINCIPAL DEL CIELO ---
 const MAX_POINTS = 24;
-const BOLT_HEIGHT = 28.0;
+const BOLT_HEIGHT = 40.0;
 
 const lightningShader = {
   uniforms: {
@@ -298,116 +360,52 @@ class ProceduralLightning3D {
   }
 }
 
-// --- 4. AGENTES AUTÓNOMOS (DODECAEDROS WIREFRAME - UNIDAD 6) ---
-const NUM_NODES = 8;
-const nodeGeo = new THREE.DodecahedronGeometry(0.8, 0);
+// --- 4. SISTEMA DE 600 PARTÍCULAS / AGENTES EN INSTANCEDMESH ---
+const NUM_PARTICLES = 600;
+const particleGeo = new THREE.DodecahedronGeometry(0.35, 0);
+const particleMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  wireframe: true,
+  emissive: colorPalette[0].lightHex,
+  emissiveIntensity: 1.4
+});
 
-class AgentNode {
-  constructor(id) {
-    this.id = id;
-    this.position = new THREE.Vector3(
-      (Math.random() - 0.5) * 22,
-      5 + Math.random() * 6,
-      (Math.random() - 0.5) * 16
-    );
-    this.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.08, (Math.random() - 0.5) * 0.02, (Math.random() - 0.5) * 0.08);
-    this.acceleration = new THREE.Vector3();
-    this.maxSpeed = 0.08;
-    this.maxForce = 0.005;
-    this.perceptionRadius = 11.0;
+const particleMesh = new THREE.InstancedMesh(particleGeo, particleMat, NUM_PARTICLES);
+scene.add(particleMesh);
 
-    this.mat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      wireframe: true,
-      emissive: colorPalette[0].lightHex,
-      emissiveIntensity: 1.2
-    });
-    this.mesh = new THREE.Mesh(nodeGeo, this.mat);
-    this.mesh.castShadow = true;
-    this.mesh.position.copy(this.position);
-    scene.add(this.mesh);
-  }
+// Buffers de datos de partículas
+const particlePositions = new Float32Array(NUM_PARTICLES * 3);
+const particleVelocities = new Float32Array(NUM_PARTICLES * 3);
+const particleRotations = new Float32Array(NUM_PARTICLES * 3);
+const dummy = new THREE.Object3D();
 
-  update() {
-    this.velocity.add(this.acceleration);
-    this.velocity.clampLength(0, this.maxSpeed);
-    this.position.add(this.velocity);
-    this.acceleration.set(0, 0, 0);
+// Inicialización de partículas esparcidas masivamente por el espacio
+for (let i = 0; i < NUM_PARTICLES; i++) {
+  const i3 = i * 3;
 
-    this.mesh.rotation.x += 0.01;
-    this.mesh.rotation.y += 0.015;
-    this.mesh.position.copy(this.position);
+  // Esparcidas en un radio amplio de 240 unidades en X/Z y altura de 1.5 a 24
+  particlePositions[i3] = (Math.random() - 0.5) * 240;
+  particlePositions[i3 + 1] = 1.5 + Math.random() * 22;
+  particlePositions[i3 + 2] = (Math.random() - 0.5) * 240;
 
-    if (Math.abs(this.position.x) > 18) this.velocity.x *= -1;
-    if (this.position.y < 3.5 || this.position.y > 14) this.velocity.y *= -1;
-    if (Math.abs(this.position.z) > 14) this.velocity.z *= -1;
-  }
+  particleVelocities[i3] = (Math.random() - 0.5) * 0.12;
+  particleVelocities[i3 + 1] = (Math.random() - 0.5) * 0.04;
+  particleVelocities[i3 + 2] = (Math.random() - 0.5) * 0.12;
 
-  applyForce(force) {
-    this.acceleration.add(force);
-  }
-
-  steer(target) {
-    const desired = new THREE.Vector3().subVectors(target, this.position).setLength(this.maxSpeed);
-    return new THREE.Vector3().subVectors(desired, this.velocity).clampLength(0, this.maxForce);
-  }
-
-  flock(nodes, weights) {
-    let sep = new THREE.Vector3(), ali = new THREE.Vector3(), coh = new THREE.Vector3();
-    let count = 0;
-
-    for (let other of nodes) {
-      let d = this.position.distanceTo(other.position);
-      if (other !== this && d < this.perceptionRadius) {
-        if (d > 0.1) {
-          let diff = new THREE.Vector3().subVectors(this.position, other.position).divideScalar(d * d);
-          sep.add(diff);
-        }
-        ali.add(other.velocity);
-        coh.add(other.position);
-        count++;
-      }
-    }
-
-    if (count > 0) {
-      sep.divideScalar(count);
-      if (sep.lengthSq() > 0) sep.setLength(this.maxSpeed).sub(this.velocity).clampLength(0, this.maxForce);
-
-      ali.divideScalar(count);
-      if (ali.lengthSq() > 0) ali.setLength(this.maxSpeed).sub(this.velocity).clampLength(0, this.maxForce);
-
-      coh.divideScalar(count);
-      coh = this.steer(coh);
-    }
-
-    this.applyForce(sep.multiplyScalar(weights.sep));
-    this.applyForce(ali.multiplyScalar(weights.ali));
-    this.applyForce(coh.multiplyScalar(weights.coh));
-  }
-
-  flowField(time, weight) {
-    const angle = Math.sin(this.position.x * 0.1 + time) * Math.cos(this.position.z * 0.1 + time) * Math.PI * 2;
-    const flowVector = new THREE.Vector3(Math.cos(angle), Math.sin(angle * 0.5) * 0.2, Math.sin(angle)).setLength(this.maxSpeed);
-    const steer = new THREE.Vector3().subVectors(flowVector, this.velocity).clampLength(0, this.maxForce);
-    this.applyForce(steer.multiplyScalar(weight));
-  }
-
-  seekStrike(strikePos, weight) {
-    const steer = this.steer(strikePos);
-    this.applyForce(steer.multiplyScalar(weight));
-  }
+  particleRotations[i3] = Math.random() * Math.PI;
+  particleRotations[i3 + 1] = Math.random() * Math.PI;
+  particleRotations[i3 + 2] = 0;
 }
-
-const agentNodes = Array.from({ length: NUM_NODES }, (_, i) => new AgentNode(i));
 
 let activeMode = 1;
 const modeWeights = {
-  1: { sep: 1.5, ali: 1.0, coh: 1.2, flow: 0.4, seek: 0.0, name: '1 — Flocking (Red Estable)' },
-  2: { sep: 0.8, ali: 0.3, coh: 0.2, flow: 2.0, seek: 0.0, name: '2 — Flow Field (Turbulencia)' },
-  3: { sep: 0.5, ali: 0.1, coh: 2.5, flow: 0.3, seek: 1.8, name: '3 — Atracción (Plasma Concentrado)' }
+  1: { flow: 0.2, seek: 0.0, maxSpeed: 0.12, name: '1 — Flocking (Enjambre Masivo)' },
+  2: { flow: 1.8, seek: 0.0, maxSpeed: 0.25, name: '2 — Flow Field (Turbulencia Espacial)' },
+  3: { flow: 0.1, seek: 2.2, maxSpeed: 0.35, name: '3 — Atracción (Plasma Concentrado)' }
 };
 
-const MAX_ARCS = 10;
+// Se aumenta el pool a 150 arcos voltaicos para soportar agrupaciones densas
+const MAX_ARCS = 150;
 const arcPool = Array.from({ length: MAX_ARCS }, () => new ProceduralLightning3D(scene, colorPalette[0].lightHex));
 
 // --- 5. DISPARO DE RAYO PRINCIPAL DEL CIELO ---
@@ -435,7 +433,7 @@ function triggerLightningStrike(point) {
   count++;
 
   while (y < 1.0 && count < MAX_POINTS) {
-    const lean = (Math.random() * 2 - 1) * 0.45;
+    const lean = (Math.random() - 0.5) * 0.45;
     const len = 0.05 + Math.random() * 0.12;
     x += Math.sin(lean) * len;
     y += Math.cos(lean) * len;
@@ -460,6 +458,8 @@ function triggerLightningStrike(point) {
   boltMesh.visible = true;
 
   strikeLight.position.set(point.x, 1.5, point.z);
+  cloudFlashLight.position.set(point.x, 35, point.z);
+
   strikeStart = clock.getElapsedTime();
   trauma = 0.4;
 }
@@ -486,7 +486,7 @@ window.addEventListener('pointerup', (event) => {
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObject(floor);
 
-    if (intersects.length > 0 && intersects[0].distance < 35) {
+    if (intersects.length > 0 && intersects[0].distance < 400) {
       triggerLightningStrike(intersects[0].point);
     }
   }
@@ -494,8 +494,8 @@ window.addEventListener('pointerup', (event) => {
 
 window.addEventListener('keydown', (event) => {
   if (event.code === 'Space') {
-    const rx = (Math.random() - 0.5) * 22;
-    const rz = (Math.random() - 0.5) * 16;
+    const rx = (Math.random() - 0.5) * 60;
+    const rz = (Math.random() - 0.5) * 60;
     triggerLightningStrike(new THREE.Vector3(rx, 0, rz));
   } else if (event.code === 'KeyC') {
     currentColorIndex = (currentColorIndex + 1) % colorPalette.length;
@@ -503,11 +503,9 @@ window.addEventListener('keydown', (event) => {
 
     boltMat.uniforms.uColor.value = new THREE.Color(activeColor.hex).multiplyScalar(5);
     strikeLight.color.setHex(activeColor.lightHex);
+    cloudFlashLight.color.setHex(activeColor.lightHex);
 
-    agentNodes.forEach((node) => {
-      node.mat.emissive.setHex(activeColor.lightHex);
-    });
-
+    particleMat.emissive.setHex(activeColor.lightHex);
     arcPool.forEach((arc) => arc.setColor(activeColor.lightHex));
 
     if (colorTxt) colorTxt.innerText = activeColor.name;
@@ -571,6 +569,12 @@ btnAudio.addEventListener('click', (e) => {
 
 // --- 8. BUCLE DE ANIMACIÓN ---
 const clock = new THREE.Clock();
+const tempVecA = new THREE.Vector3();
+const tempVecB = new THREE.Vector3();
+
+// Distancia mínima y máxima al cuadrado para activar un rayo entre partículas
+const MIN_DIST_SQ = 0.6 * 0.6;
+const MAX_DIST_SQ = 8.0 * 8.0;
 
 function animate() {
   requestAnimationFrame(animate);
@@ -580,41 +584,151 @@ function animate() {
 
   controls.update();
 
-  // 1. Agentes Autónomos
-  const weights = modeWeights[activeMode];
-  const isBoltActive = boltMesh.visible;
-
-  agentNodes.forEach((node) => {
-    node.flock(agentNodes, weights);
-    node.flowField(elapsed, weights.flow);
-
-    if (isBoltActive && weights.seek > 0) {
-      node.seekStrike(strikePoint, weights.seek);
+  // Mover nubes procedurales
+  clouds.forEach((c) => {
+    c.mesh.position.x += c.speed * delta * 4.0;
+    if (c.mesh.position.x > 80) {
+      c.mesh.position.x = -80;
     }
-
-    node.update();
   });
 
-  // 2. Conectar Agentes Cercanos con Rayos Inter-agentes
+  // 1. Bucle Físico y de Fuerza de las 600 Partículas
+  const config = modeWeights[activeMode];
+  const isBoltActive = boltMesh.visible;
+  const particleRadius = 0.35;
+
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    const i3 = i * 3;
+
+    let px = particlePositions[i3];
+    let py = particlePositions[i3 + 1];
+    let pz = particlePositions[i3 + 2];
+
+    let vx = particleVelocities[i3];
+    let vy = particleVelocities[i3 + 1];
+    let vz = particleVelocities[i3 + 2];
+
+    // Fuerza de Flow Field (Ondulación armónica continua)
+    const angle = Math.sin(px * 0.05 + elapsed * 0.8) * Math.cos(pz * 0.05 + elapsed * 0.8) * Math.PI * 2;
+    vx += Math.cos(angle) * config.flow * 0.008;
+    vy += Math.sin(angle * 0.5) * config.flow * 0.003;
+    vz += Math.sin(angle) * config.flow * 0.008;
+
+    // Fuerza de Atracción al Rayo
+    if (isBoltActive && config.seek > 0) {
+      const dx = strikePoint.x - px;
+      const dy = strikePoint.y - py;
+      const dz = strikePoint.z - pz;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.1;
+
+      vx += (dx / dist) * config.seek * 0.02;
+      vy += (dy / dist) * config.seek * 0.02;
+      vz += (dz / dist) * config.seek * 0.02;
+    }
+
+    // Limitar velocidad máxima
+    const speedSq = vx * vx + vy * vy + vz * vz;
+    const maxSpd = config.maxSpeed;
+    if (speedSq > maxSpd * maxSpd) {
+      const spd = Math.sqrt(speedSq);
+      vx = (vx / spd) * maxSpd;
+      vy = (vy / spd) * maxSpd;
+      vz = (vz / spd) * maxSpd;
+    }
+
+    // Actualizar Posiciones
+    px += vx;
+    py += vy;
+    pz += vz;
+
+    // --- COLISIÓN FÍSICA: SUELO ---
+    const minHeight = 0.5;
+    if (py < minHeight) {
+      py = minHeight;
+      if (vy < 0) vy *= -0.5;
+    }
+
+    // --- COLISIÓN FÍSICA: CUBOS ---
+    for (let bIdx = 0; bIdx < boxes.length; bIdx++) {
+      const b = boxes[bIdx];
+      if (py - particleRadius < b.height && py + particleRadius > 0) {
+        const dx = px - b.x;
+        const dz = pz - b.z;
+        const distSq = dx * dx + dz * dz;
+        const minDist = b.radius + particleRadius;
+
+        if (distSq < minDist * minDist) {
+          const dist = Math.sqrt(distSq) || 0.001;
+          const overlap = minDist - dist;
+          const nx = dx / dist;
+          const nz = dz / dist;
+
+          px += nx * overlap;
+          pz += nz * overlap;
+
+          const dot = vx * nx + vz * nz;
+          if (dot < 0) {
+            vx -= 1.4 * dot * nx;
+            vz -= 1.4 * dot * nz;
+          }
+        }
+      }
+    }
+
+    // Rebotar en bordes exteriores de la escena
+    if (Math.abs(px) > 130) vx *= -1;
+    if (py > 28) vy *= -1;
+    if (Math.abs(pz) > 130) vz *= -1;
+
+    // Guardar datos actualizados (FIX: guardado correcto de vy)
+    particlePositions[i3] = px;
+    particlePositions[i3 + 1] = py;
+    particlePositions[i3 + 2] = pz;
+
+    particleVelocities[i3] = vx;
+    particleVelocities[i3 + 1] = vy;
+    particleVelocities[i3 + 2] = vz;
+
+    particleRotations[i3] += 0.01;
+    particleRotations[i3 + 1] += 0.015;
+
+    // Actualizar Matriz de la Instancia
+    dummy.position.set(px, py, pz);
+    dummy.rotation.set(particleRotations[i3], particleRotations[i3 + 1], particleRotations[i3 + 2]);
+    dummy.updateMatrix();
+    particleMesh.setMatrixAt(i, dummy.matrix);
+  }
+  particleMesh.instanceMatrix.needsUpdate = true;
+
+  // 2. Conectar TODAS las Partículas Cercanas de la Escena
   let arcIdx = 0;
   arcPool.forEach((arc) => arc.hide());
 
-  for (let i = 0; i < agentNodes.length; i++) {
-    for (let j = i + 1; j < agentNodes.length; j++) {
-      if (arcIdx >= MAX_ARCS) break;
+  // Búsqueda global optimizada entre las 600 partículas
+  for (let i = 0; i < NUM_PARTICLES && arcIdx < MAX_ARCS; i++) {
+    const i3 = i * 3;
+    const ax = particlePositions[i3];
+    const ay = particlePositions[i3 + 1];
+    const az = particlePositions[i3 + 2];
 
-      const nodeA = agentNodes[i];
-      const nodeB = agentNodes[j];
-      const dist = nodeA.position.distanceTo(nodeB.position);
+    for (let j = i + 1; j < NUM_PARTICLES && arcIdx < MAX_ARCS; j++) {
+      const j3 = j * 3;
+      const dx = particlePositions[j3] - ax;
+      const dy = particlePositions[j3 + 1] - ay;
+      const dz = particlePositions[j3 + 2] - az;
 
-      if (dist > 1.0 && dist < 11.0) {
-        arcPool[arcIdx].update(nodeA.position, nodeB.position);
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      if (distSq > MIN_DIST_SQ && distSq < MAX_DIST_SQ) {
+        tempVecA.set(ax, ay, az);
+        tempVecB.set(particlePositions[j3], particlePositions[j3 + 1], particlePositions[j3 + 2]);
+        arcPool[arcIdx].update(tempVecA, tempVecB);
         arcIdx++;
       }
     }
   }
 
-  // 3. Audio FFT (Sensibilidad equilibrada)
+  // 3. Audio FFT
   if (audioLoaded && analyser && isAudioPlaying && sound.isPlaying) {
     const freqData = analyser.getFrequencyData();
     let pianoEnergy = 0;
@@ -624,10 +738,9 @@ function animate() {
     const deltaPiano = pianoEnergy - prevPianoEnergy;
     prevPianoEnergy = pianoEnergy;
 
-    // Umbrales calibrados para respuesta musical limpia sin saturación
     if (deltaPiano > 2.6 && pianoEnergy > 16 && strikeCooldown <= 0) {
-      const rx = (Math.random() - 0.5) * 22;
-      const rz = (Math.random() - 0.5) * 16;
+      const rx = (Math.random() - 0.5) * 40;
+      const rz = (Math.random() - 0.5) * 40;
       triggerLightningStrike(new THREE.Vector3(rx, 0, rz));
       strikeCooldown = 6;
     }
@@ -647,9 +760,11 @@ function animate() {
       const stepIdx = Math.floor(t / FLICKER_STEP);
       bloomPass.strength = FLICKER[stepIdx] * 0.12;
       strikeLight.intensity = FLICKER[stepIdx] * 12.0;
+      cloudFlashLight.intensity = FLICKER[stepIdx] * 18.0;
     } else {
       bloomPass.strength = THREE.MathUtils.damp(bloomPass.strength, 0.8, 4.0, delta);
       strikeLight.intensity = THREE.MathUtils.damp(strikeLight.intensity, 0, 5.0, delta);
+      cloudFlashLight.intensity = THREE.MathUtils.damp(cloudFlashLight.intensity, 0, 6.0, delta);
 
       boltMat.uniforms.uOpacity.value = THREE.MathUtils.damp(boltMat.uniforms.uOpacity.value, 0, 5.0, delta);
       boltMat.uniforms.uWidth.value = THREE.MathUtils.damp(boltMat.uniforms.uWidth.value, 0, 4.0, delta);
