@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fade Away - Rayo VFX Shader</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Import Map para Three.js v0.160.0 -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="ui-overlay">
+    <h1>Fade Away — VFX Lightning Strike</h1>
+    <p>Impacto: <strong>Clic en el suelo</strong> o <strong>[Espacio]</strong></p>
+    <p>Color del Rayo: <strong id="color-txt">Azul Eléctrico</strong> [Tecla <strong>C</strong>]</p>
+    
+    <button id="btn-audio">▶ Reproducir Audio y Sincronizar</button>
+  </div>
+
+  <canvas id="webgl-canvas"></canvas>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
