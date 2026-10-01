@@ -11,7 +11,7 @@ scene.background = new THREE.Color(0x0a0c16);
 scene.fog = new THREE.FogExp2(0x0a0c16, 0.012);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
-camera.position.set(0, 8, 30);
+camera.position.set(0, 15, 45);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -24,6 +24,38 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.maxPolarAngle = Math.PI / 2 - 0.01;
 controls.target.set(0, 3, 0);
+
+// --- PRESETS DE CÁMARA ---
+const cameraPresets = [
+  { name: '1 — Visión General', pos: new THREE.Vector3(0, 15, 45), target: new THREE.Vector3(0, 3, 0) },
+  { name: '2 — Contrapicado (Suelo)', pos: new THREE.Vector3(0, 1.5, 14), target: new THREE.Vector3(0, 12, -15) },
+  { name: '3 — Cenital (Top-Down)', pos: new THREE.Vector3(0, 90, 0.1), target: new THREE.Vector3(0, 0, 0) },
+  { name: '4 — Primer Plano Enjambre', pos: new THREE.Vector3(18, 6, 18), target: new THREE.Vector3(0, 4, 0) }
+];
+
+let currentPresetIndex = 0;
+let isTransitioningCamera = false;
+const targetCamPos = new THREE.Vector3().copy(camera.position);
+const targetCamTarget = new THREE.Vector3().copy(controls.target);
+
+const presetTxt = document.getElementById('preset-txt');
+
+function setCameraPreset(index) {
+  if (index < 0 || index >= cameraPresets.length) return;
+  currentPresetIndex = index;
+  const preset = cameraPresets[index];
+
+  targetCamPos.copy(preset.pos);
+  targetCamTarget.copy(preset.target);
+  isTransitioningCamera = true;
+
+  if (presetTxt) presetTxt.innerText = preset.name;
+}
+
+// Cancelar transición suave si el usuario arrastra la cámara manualmente
+controls.addEventListener('start', () => {
+  isTransitioningCamera = false;
+});
 
 // Luces
 const ambientLight = new THREE.AmbientLight(0x7080a0, 0.85);
@@ -393,7 +425,7 @@ const modeWeights = {
 const MAX_ARCS = 150;
 const arcPool = Array.from({ length: MAX_ARCS }, () => new ProceduralLightning3D(scene, colorPalette[0].lightHex));
 
-// --- 5. SHADER Y CLASE DE ONDA DE CHOQUE ESFÉRICA CON CORTE DE INTERSECCIÓN BRILLANTE ---
+// --- 5. SHADER Y CLASE DE ONDA DE CHOQUE ESFÉRICA ---
 const shockwaveShader = {
   uniforms: {
     uColor: { value: new THREE.Color(colorPalette[0].hex).multiplyScalar(3.5) },
@@ -449,32 +481,17 @@ const shockwaveShader = {
 
     void main() {
       vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-      
-      // Fresnel Effect en el borde de la esfera
       float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), uFresnelPower);
-      
-      // Intersección / Corte deslumbrante con el Suelo (y = 0)
       float floorIntersect = smoothstep(1.2, 0.0, abs(vWorldPosition.y));
-      
-      // Intersección con la franja de altura de los Cubos (y en rango 0 a 4.0)
       float boxIntersect = smoothstep(4.5, 0.0, vWorldPosition.y) * 0.7;
-
-      // Ruido de plasma eléctrico animado
       float noise = snoise(vUv * 12.0 + vec2(uTime * 8.0, uTime * 4.0));
       float electric = smoothstep(0.2, 0.8, noise);
-
-      // Latido de brillo ecuatorial
       float equatorGlow = smoothstep(0.35, 0.0, abs(vUv.y - 0.5));
-
-      // Desvanecimiento progresivo
       float fade = pow(1.0 - uProgress, 1.5);
 
-      // Mezcla de opacidad y brillo reforzado
       float alpha = (fresnel * 1.3 + floorIntersect * 2.8 + boxIntersect * 1.2 + electric * 0.9 + equatorGlow * 0.7) * fade;
-
       if (alpha < 0.008) discard;
 
-      // Color de emisión súper vivo con acento de corte en el piso
       vec3 col = uColor * (1.8 + floorIntersect * 2.2 + electric * 1.2);
       gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
     }
@@ -508,7 +525,6 @@ class ElectricShockwave {
 
     this.sphereMesh = new THREE.Mesh(shockwaveSphereGeo, this.mat);
     this.sphereMesh.visible = false;
-
     this.scene.add(this.sphereMesh);
   }
 
@@ -534,7 +550,6 @@ class ElectricShockwave {
     const currentRadius = progress * this.maxRadius;
     this.sphereMesh.scale.set(currentRadius, currentRadius, currentRadius);
 
-    // Impulso expansivo omnidireccional en 3D sobre las partículas
     const minR = Math.max(0, currentRadius - 3.0);
     const maxR = currentRadius + 1.5;
 
@@ -572,7 +587,6 @@ function spawnShockwave(point, colorHex) {
   sw.spawn(point, colorHex);
 }
 
-// --- FUNCIÓN PARA DETECTAR EL PUNTO DE MAYOR DENSIDAD DE PARTÍCULAS ---
 function findHighestParticleDensityPoint() {
   const searchRadiusSq = 8.0 * 8.0;
   let maxNeighbors = -1;
@@ -613,7 +627,7 @@ function findHighestParticleDensityPoint() {
   return new THREE.Vector3(bestX, bestY, bestZ);
 }
 
-// --- 6. DISPARO DE RAYO PRINCIPAL DEL CIELO ---
+// --- 6. DISPARO DE RAYO PRINCIPAL ---
 let strikeStart = -100;
 let trauma = 0.0;
 const strikePoint = new THREE.Vector3();
@@ -703,7 +717,6 @@ window.addEventListener('keydown', (event) => {
     const rz = (Math.random() - 0.5) * 60;
     triggerLightningStrike(new THREE.Vector3(rx, 0, rz));
   } else if (event.code === 'KeyE') {
-    // Activar Onda Esférica en el punto de densidad máxima del enjambre
     const densityPoint = findHighestParticleDensityPoint();
     spawnShockwave(densityPoint, colorPalette[currentColorIndex].lightHex);
   } else if (event.code === 'KeyC') {
@@ -722,10 +735,16 @@ window.addEventListener('keydown', (event) => {
   } else if (['Digit1', 'Digit2', 'Digit3'].includes(event.code)) {
     activeMode = parseInt(event.code.replace('Digit', ''));
     if (modoTxt) modoTxt.innerText = modeWeights[activeMode].name;
+  } else if (['Digit4', 'Digit5', 'Digit6', 'Digit7'].includes(event.code)) {
+    const presetIdx = parseInt(event.code.replace('Digit', '')) - 4;
+    setCameraPreset(presetIdx);
+  } else if (event.code === 'KeyV') {
+    const nextPreset = (currentPresetIndex + 1) % cameraPresets.length;
+    setCameraPreset(nextPreset);
   }
 });
 
-// --- 8. AUDIO FFT (Fade Away.mp3) ---
+// --- 8. AUDIO FFT ---
 const listener = new THREE.AudioListener();
 camera.add(listener);
 
@@ -791,6 +810,18 @@ function animate() {
   const delta = clock.getDelta();
   const elapsed = clock.getElapsedTime();
 
+  // Transición suave de cámara
+  if (isTransitioningCamera) {
+    camera.position.lerp(targetCamPos, 0.06);
+    controls.target.lerp(targetCamTarget, 0.06);
+
+    if (camera.position.distanceTo(targetCamPos) < 0.05 && controls.target.distanceTo(targetCamTarget) < 0.05) {
+      camera.position.copy(targetCamPos);
+      controls.target.copy(targetCamTarget);
+      isTransitioningCamera = false;
+    }
+  }
+
   controls.update();
 
   clouds.forEach((c) => {
@@ -798,10 +829,8 @@ function animate() {
     if (c.mesh.position.x > 80) c.mesh.position.x = -80;
   });
 
-  // 1. Actualizar Ondas Esféricas
   shockwavePool.forEach((sw) => sw.update(delta, elapsed));
 
-  // 2. Bucle Físico y de Fuerza de las 600 Partículas
   const config = modeWeights[activeMode];
   const isBoltActive = boltMesh.visible;
   const particleRadius = 0.35;
@@ -900,7 +929,6 @@ function animate() {
   }
   particleMesh.instanceMatrix.needsUpdate = true;
 
-  // 3. Conectar Partículas Cercanas
   let arcIdx = 0;
   arcPool.forEach((arc) => arc.hide());
 
@@ -927,7 +955,6 @@ function animate() {
     }
   }
 
-  // 4. Audio FFT
   if (audioLoaded && analyser && isAudioPlaying && sound.isPlaying) {
     const freqData = analyser.getFrequencyData();
     let pianoEnergy = 0;
@@ -946,7 +973,6 @@ function animate() {
     if (strikeCooldown > 0) strikeCooldown--;
   }
 
-  // 5. Parpadeo y Fade Out del Rayo del Cielo
   const t = elapsed - strikeStart;
 
   if (boltMesh.visible) {
@@ -976,7 +1002,6 @@ function animate() {
     }
   }
 
-  // 6. Sacudida de Cámara
   if (trauma > 0) {
     const phase = elapsed * 24;
     const amp = trauma * 0.012;
