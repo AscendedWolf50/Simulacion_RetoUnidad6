@@ -10,7 +10,6 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0c16);
 scene.fog = new THREE.FogExp2(0x0a0c16, 0.012);
 
-// Cámara ajustada con plano lejano de 2000 para visualizar hasta el horizonte
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
 camera.position.set(0, 8, 30);
 
@@ -20,11 +19,10 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-// Controles de cámara Orbit
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.maxPolarAngle = Math.PI / 2 - 0.01; // Evita que la cámara baje del nivel del suelo
+controls.maxPolarAngle = Math.PI / 2 - 0.01;
 controls.target.set(0, 3, 0);
 
 // Luces
@@ -40,7 +38,6 @@ const strikeLight = new THREE.PointLight(0x00aaff, 0, 60);
 strikeLight.castShadow = true;
 scene.add(strikeLight);
 
-// Luz de iluminación interna de nubes en la nueva altitud
 const cloudFlashLight = new THREE.PointLight(0x00aaff, 0, 100);
 cloudFlashLight.position.set(0, 35, 0);
 scene.add(cloudFlashLight);
@@ -56,14 +53,12 @@ scene.add(floor);
 const boxGeo = new THREE.BoxGeometry(1.2, 2.5, 1.2);
 const boxMat = new THREE.MeshStandardMaterial({ color: 0x363d56, roughness: 0.4, metalness: 0.4 });
 
-// Dispersión de 300 cubos y registro de datos para colisiones físicas
 const numBoxes = 300;
 const boxes = [];
 
 for (let i = 0; i < numBoxes; i++) {
   const box = new THREE.Mesh(boxGeo, boxMat);
   const angle = Math.random() * Math.PI * 2;
-  
   const radius = 6 + Math.pow(Math.random(), 1.4) * 394;
   const heightScale = 0.8 + Math.random() * 1.5;
   const height = 2.5 * heightScale;
@@ -83,11 +78,11 @@ for (let i = 0; i < numBoxes; i++) {
     x: box.position.x,
     z: box.position.z,
     height: height,
-    radius: 0.95 // Radio delimitador del cubo para colisión
+    radius: 0.95
   });
 }
 
-// --- NUBES PROCEDURALES DE TORMENTA (ELEVADAS A Y = 32..38) ---
+// --- NUBES PROCEDURALES DE TORMENTA ---
 const cloudGroup = new THREE.Group();
 const cloudGeo = new THREE.DodecahedronGeometry(1, 1);
 const cloudMat = new THREE.MeshStandardMaterial({
@@ -108,12 +103,8 @@ for (let i = 0; i < numClouds; i++) {
   const y = 32 + Math.random() * 6;
   const z = (Math.random() - 0.5) * 120;
 
-  const scaleX = 8 + Math.random() * 12;
-  const scaleY = 3 + Math.random() * 4;
-  const scaleZ = 8 + Math.random() * 12;
-
   cloud.position.set(x, y, z);
-  cloud.scale.set(scaleX, scaleY, scaleZ);
+  cloud.scale.set(8 + Math.random() * 12, 3 + Math.random() * 4, 8 + Math.random() * 12);
   cloud.rotation.y = Math.random() * Math.PI * 2;
 
   cloudGroup.add(cloud);
@@ -148,7 +139,7 @@ let currentColorIndex = 0;
 const colorTxt = document.getElementById('color-txt');
 const modoTxt = document.getElementById('modo-txt');
 
-// --- 2. SHADERMATERIAL Y GEOMETRÍA DEL RAYO PRINCIPAL DEL CIELO ---
+// --- 2. RAYO PRINCIPAL DEL CIELO ---
 const MAX_POINTS = 24;
 const BOLT_HEIGHT = 40.0;
 
@@ -265,7 +256,6 @@ class ProceduralLightning3D {
   constructor(scene, colorHex = 0x00aaff) {
     this.scene = scene;
     this.maxPoints = 16;
-
     this.group = new THREE.Group();
 
     this.geometry = new THREE.BufferGeometry();
@@ -360,7 +350,7 @@ class ProceduralLightning3D {
   }
 }
 
-// --- 4. SISTEMA DE 600 PARTÍCULAS / AGENTES EN INSTANCEDMESH ---
+// --- 4. SISTEMA DE 600 PARTÍCULAS / AGENTES ---
 const NUM_PARTICLES = 600;
 const particleGeo = new THREE.DodecahedronGeometry(0.35, 0);
 const particleMat = new THREE.MeshStandardMaterial({
@@ -373,17 +363,13 @@ const particleMat = new THREE.MeshStandardMaterial({
 const particleMesh = new THREE.InstancedMesh(particleGeo, particleMat, NUM_PARTICLES);
 scene.add(particleMesh);
 
-// Buffers de datos de partículas
 const particlePositions = new Float32Array(NUM_PARTICLES * 3);
 const particleVelocities = new Float32Array(NUM_PARTICLES * 3);
 const particleRotations = new Float32Array(NUM_PARTICLES * 3);
 const dummy = new THREE.Object3D();
 
-// Inicialización de partículas esparcidas masivamente por el espacio
 for (let i = 0; i < NUM_PARTICLES; i++) {
   const i3 = i * 3;
-
-  // Esparcidas en un radio amplio de 240 unidades en X/Z y altura de 1.5 a 24
   particlePositions[i3] = (Math.random() - 0.5) * 240;
   particlePositions[i3 + 1] = 1.5 + Math.random() * 22;
   particlePositions[i3 + 2] = (Math.random() - 0.5) * 240;
@@ -404,11 +390,230 @@ const modeWeights = {
   3: { flow: 0.1, seek: 2.2, maxSpeed: 0.35, name: '3 — Atracción (Plasma Concentrado)' }
 };
 
-// Se aumenta el pool a 150 arcos voltaicos para soportar agrupaciones densas
 const MAX_ARCS = 150;
 const arcPool = Array.from({ length: MAX_ARCS }, () => new ProceduralLightning3D(scene, colorPalette[0].lightHex));
 
-// --- 5. DISPARO DE RAYO PRINCIPAL DEL CIELO ---
+// --- 5. SHADER Y CLASE DE ONDA DE CHOQUE ESFÉRICA CON CORTE DE INTERSECCIÓN BRILLANTE ---
+const shockwaveShader = {
+  uniforms: {
+    uColor: { value: new THREE.Color(colorPalette[0].hex).multiplyScalar(3.5) },
+    uTime: { value: 0 },
+    uProgress: { value: 0 },
+    uFresnelPower: { value: 2.0 }
+  },
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vWorldPosition;
+    varying vec2 vUv;
+
+    void main() {
+      vUv = uv;
+      vNormal = normalize(normalMatrix * normal);
+      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+      vWorldPosition = worldPosition.xyz;
+      gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform float uTime;
+    uniform float uProgress;
+    uniform float uFresnelPower;
+
+    varying vec3 vNormal;
+    varying vec3 vWorldPosition;
+    varying vec2 vUv;
+
+    vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+    float snoise(vec2 v){
+      const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+      vec2 i  = floor(v + dot(v, C.yy) );
+      vec2 x0 = v -   i + dot(i, C.xx);
+      vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+      vec4 x12 = x0.xyxy + C.xxzz;
+      x12.xy -= i1;
+      i = mod(i, 289.0);
+      vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+      vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+      m = m*m; m = m*m;
+      vec3 x = 2.0 * fract(p * C.www) - 1.0;
+      vec3 h = abs(x) - 0.5;
+      vec3 ox = floor(x + 0.5);
+      vec3 a0 = x - ox;
+      m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+      vec3 g;
+      g.x  = a0.x  * x0.x  + h.x  * x0.y;
+      g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+      return 130.0 * dot(m, g);
+    }
+
+    void main() {
+      vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+      
+      // Fresnel Effect en el borde de la esfera
+      float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), uFresnelPower);
+      
+      // Intersección / Corte deslumbrante con el Suelo (y = 0)
+      float floorIntersect = smoothstep(1.2, 0.0, abs(vWorldPosition.y));
+      
+      // Intersección con la franja de altura de los Cubos (y en rango 0 a 4.0)
+      float boxIntersect = smoothstep(4.5, 0.0, vWorldPosition.y) * 0.7;
+
+      // Ruido de plasma eléctrico animado
+      float noise = snoise(vUv * 12.0 + vec2(uTime * 8.0, uTime * 4.0));
+      float electric = smoothstep(0.2, 0.8, noise);
+
+      // Latido de brillo ecuatorial
+      float equatorGlow = smoothstep(0.35, 0.0, abs(vUv.y - 0.5));
+
+      // Desvanecimiento progresivo
+      float fade = pow(1.0 - uProgress, 1.5);
+
+      // Mezcla de opacidad y brillo reforzado
+      float alpha = (fresnel * 1.3 + floorIntersect * 2.8 + boxIntersect * 1.2 + electric * 0.9 + equatorGlow * 0.7) * fade;
+
+      if (alpha < 0.008) discard;
+
+      // Color de emisión súper vivo con acento de corte en el piso
+      vec3 col = uColor * (1.8 + floorIntersect * 2.2 + electric * 1.2);
+      gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+    }
+  `
+};
+
+const shockwaveSphereGeo = new THREE.SphereGeometry(1, 32, 32);
+
+class ElectricShockwave {
+  constructor(scene) {
+    this.scene = scene;
+    this.maxRadius = 14.0;
+    this.duration = 0.75;
+    this.life = 0;
+    this.active = false;
+    this.center = new THREE.Vector3();
+
+    this.mat = new THREE.ShaderMaterial({
+      ...shockwaveShader,
+      uniforms: {
+        uColor: { value: new THREE.Color(colorPalette[0].hex).multiplyScalar(3.5) },
+        uTime: { value: 0 },
+        uProgress: { value: 0 },
+        uFresnelPower: { value: 2.0 }
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+
+    this.sphereMesh = new THREE.Mesh(shockwaveSphereGeo, this.mat);
+    this.sphereMesh.visible = false;
+
+    this.scene.add(this.sphereMesh);
+  }
+
+  spawn(point, colorHex) {
+    this.center.copy(point);
+    this.sphereMesh.position.copy(point);
+    this.life = 0;
+    this.active = true;
+    this.sphereMesh.visible = true;
+
+    this.mat.uniforms.uColor.value.setHex(colorHex).multiplyScalar(3.5);
+    this.mat.uniforms.uProgress.value = 0;
+  }
+
+  update(delta, elapsed) {
+    if (!this.active) return;
+
+    this.life += delta;
+    const progress = Math.min(this.life / this.duration, 1.0);
+    this.mat.uniforms.uProgress.value = progress;
+    this.mat.uniforms.uTime.value = elapsed;
+
+    const currentRadius = progress * this.maxRadius;
+    this.sphereMesh.scale.set(currentRadius, currentRadius, currentRadius);
+
+    // Impulso expansivo omnidireccional en 3D sobre las partículas
+    const minR = Math.max(0, currentRadius - 3.0);
+    const maxR = currentRadius + 1.5;
+
+    for (let i = 0; i < NUM_PARTICLES; i++) {
+      const i3 = i * 3;
+      const dx = particlePositions[i3] - this.center.x;
+      const dy = particlePositions[i3 + 1] - this.center.y;
+      const dz = particlePositions[i3 + 2] - this.center.z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      if (distSq >= minR * minR && distSq <= maxR * maxR) {
+        const dist = Math.sqrt(distSq) || 0.1;
+        const impulse = (1.0 - progress) * 0.38;
+        particleVelocities[i3] += (dx / dist) * impulse;
+        particleVelocities[i3 + 1] += (dy / dist) * impulse;
+        particleVelocities[i3 + 2] += (dz / dist) * impulse;
+      }
+    }
+
+    if (progress >= 1.0) {
+      this.active = false;
+      this.sphereMesh.visible = false;
+    }
+  }
+
+  setColor(hex) {
+    this.mat.uniforms.uColor.value.setHex(hex).multiplyScalar(3.5);
+  }
+}
+
+const shockwavePool = Array.from({ length: 8 }, () => new ElectricShockwave(scene));
+
+function spawnShockwave(point, colorHex) {
+  const sw = shockwavePool.find((s) => !s.active) || shockwavePool[0];
+  sw.spawn(point, colorHex);
+}
+
+// --- FUNCIÓN PARA DETECTAR EL PUNTO DE MAYOR DENSIDAD DE PARTÍCULAS ---
+function findHighestParticleDensityPoint() {
+  const searchRadiusSq = 8.0 * 8.0;
+  let maxNeighbors = -1;
+  let bestX = 0, bestY = 3, bestZ = 0;
+
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    const i3 = i * 3;
+    const px = particlePositions[i3];
+    const py = particlePositions[i3 + 1];
+    const pz = particlePositions[i3 + 2];
+
+    let neighbors = 0;
+    let sumX = px, sumY = py, sumZ = pz;
+
+    for (let j = 0; j < NUM_PARTICLES; j++) {
+      if (i === j) continue;
+      const j3 = j * 3;
+      const dx = particlePositions[j3] - px;
+      const dy = particlePositions[j3 + 1] - py;
+      const dz = particlePositions[j3 + 2] - pz;
+
+      if (dx * dx + dy * dy + dz * dz < searchRadiusSq) {
+        neighbors++;
+        sumX += particlePositions[j3];
+        sumY += particlePositions[j3 + 1];
+        sumZ += particlePositions[j3 + 2];
+      }
+    }
+
+    if (neighbors > maxNeighbors) {
+      maxNeighbors = neighbors;
+      bestX = sumX / (neighbors + 1);
+      bestY = sumY / (neighbors + 1);
+      bestZ = sumZ / (neighbors + 1);
+    }
+  }
+
+  return new THREE.Vector3(bestX, bestY, bestZ);
+}
+
+// --- 6. DISPARO DE RAYO PRINCIPAL DEL CIELO ---
 let strikeStart = -100;
 let trauma = 0.0;
 const strikePoint = new THREE.Vector3();
@@ -464,7 +669,7 @@ function triggerLightningStrike(point) {
   trauma = 0.4;
 }
 
-// --- 6. CONTROLES E INTERACCIÓN ---
+// --- 7. CONTROLES E INTERACCIÓN ---
 let pointerDownPos = { x: 0, y: 0 };
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -497,6 +702,10 @@ window.addEventListener('keydown', (event) => {
     const rx = (Math.random() - 0.5) * 60;
     const rz = (Math.random() - 0.5) * 60;
     triggerLightningStrike(new THREE.Vector3(rx, 0, rz));
+  } else if (event.code === 'KeyE') {
+    // Activar Onda Esférica en el punto de densidad máxima del enjambre
+    const densityPoint = findHighestParticleDensityPoint();
+    spawnShockwave(densityPoint, colorPalette[currentColorIndex].lightHex);
   } else if (event.code === 'KeyC') {
     currentColorIndex = (currentColorIndex + 1) % colorPalette.length;
     const activeColor = colorPalette[currentColorIndex];
@@ -507,6 +716,7 @@ window.addEventListener('keydown', (event) => {
 
     particleMat.emissive.setHex(activeColor.lightHex);
     arcPool.forEach((arc) => arc.setColor(activeColor.lightHex));
+    shockwavePool.forEach((sw) => sw.setColor(activeColor.lightHex));
 
     if (colorTxt) colorTxt.innerText = activeColor.name;
   } else if (['Digit1', 'Digit2', 'Digit3'].includes(event.code)) {
@@ -515,7 +725,7 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-// --- 7. AUDIO FFT (Fade Away.mp3) ---
+// --- 8. AUDIO FFT (Fade Away.mp3) ---
 const listener = new THREE.AudioListener();
 camera.add(listener);
 
@@ -567,12 +777,11 @@ btnAudio.addEventListener('click', (e) => {
   }
 });
 
-// --- 8. BUCLE DE ANIMACIÓN ---
+// --- 9. BUCLE DE ANIMACIÓN ---
 const clock = new THREE.Clock();
 const tempVecA = new THREE.Vector3();
 const tempVecB = new THREE.Vector3();
 
-// Distancia mínima y máxima al cuadrado para activar un rayo entre partículas
 const MIN_DIST_SQ = 0.6 * 0.6;
 const MAX_DIST_SQ = 8.0 * 8.0;
 
@@ -584,15 +793,15 @@ function animate() {
 
   controls.update();
 
-  // Mover nubes procedurales
   clouds.forEach((c) => {
     c.mesh.position.x += c.speed * delta * 4.0;
-    if (c.mesh.position.x > 80) {
-      c.mesh.position.x = -80;
-    }
+    if (c.mesh.position.x > 80) c.mesh.position.x = -80;
   });
 
-  // 1. Bucle Físico y de Fuerza de las 600 Partículas
+  // 1. Actualizar Ondas Esféricas
+  shockwavePool.forEach((sw) => sw.update(delta, elapsed));
+
+  // 2. Bucle Físico y de Fuerza de las 600 Partículas
   const config = modeWeights[activeMode];
   const isBoltActive = boltMesh.visible;
   const particleRadius = 0.35;
@@ -608,13 +817,11 @@ function animate() {
     let vy = particleVelocities[i3 + 1];
     let vz = particleVelocities[i3 + 2];
 
-    // Fuerza de Flow Field (Ondulación armónica continua)
     const angle = Math.sin(px * 0.05 + elapsed * 0.8) * Math.cos(pz * 0.05 + elapsed * 0.8) * Math.PI * 2;
     vx += Math.cos(angle) * config.flow * 0.008;
     vy += Math.sin(angle * 0.5) * config.flow * 0.003;
-    vz += Math.sin(angle) * config.flow * 0.008;
+    vz += Math.sin(angle * 0.5) * config.flow * 0.008;
 
-    // Fuerza de Atracción al Rayo
     if (isBoltActive && config.seek > 0) {
       const dx = strikePoint.x - px;
       const dy = strikePoint.y - py;
@@ -626,7 +833,6 @@ function animate() {
       vz += (dz / dist) * config.seek * 0.02;
     }
 
-    // Limitar velocidad máxima
     const speedSq = vx * vx + vy * vy + vz * vz;
     const maxSpd = config.maxSpeed;
     if (speedSq > maxSpd * maxSpd) {
@@ -636,19 +842,16 @@ function animate() {
       vz = (vz / spd) * maxSpd;
     }
 
-    // Actualizar Posiciones
     px += vx;
     py += vy;
     pz += vz;
 
-    // --- COLISIÓN FÍSICA: SUELO ---
     const minHeight = 0.5;
     if (py < minHeight) {
       py = minHeight;
       if (vy < 0) vy *= -0.5;
     }
 
-    // --- COLISIÓN FÍSICA: CUBOS ---
     for (let bIdx = 0; bIdx < boxes.length; bIdx++) {
       const b = boxes[bIdx];
       if (py - particleRadius < b.height && py + particleRadius > 0) {
@@ -675,12 +878,10 @@ function animate() {
       }
     }
 
-    // Rebotar en bordes exteriores de la escena
     if (Math.abs(px) > 130) vx *= -1;
     if (py > 28) vy *= -1;
     if (Math.abs(pz) > 130) vz *= -1;
 
-    // Guardar datos actualizados (FIX: guardado correcto de vy)
     particlePositions[i3] = px;
     particlePositions[i3 + 1] = py;
     particlePositions[i3 + 2] = pz;
@@ -692,7 +893,6 @@ function animate() {
     particleRotations[i3] += 0.01;
     particleRotations[i3 + 1] += 0.015;
 
-    // Actualizar Matriz de la Instancia
     dummy.position.set(px, py, pz);
     dummy.rotation.set(particleRotations[i3], particleRotations[i3 + 1], particleRotations[i3 + 2]);
     dummy.updateMatrix();
@@ -700,11 +900,10 @@ function animate() {
   }
   particleMesh.instanceMatrix.needsUpdate = true;
 
-  // 2. Conectar TODAS las Partículas Cercanas de la Escena
+  // 3. Conectar Partículas Cercanas
   let arcIdx = 0;
   arcPool.forEach((arc) => arc.hide());
 
-  // Búsqueda global optimizada entre las 600 partículas
   for (let i = 0; i < NUM_PARTICLES && arcIdx < MAX_ARCS; i++) {
     const i3 = i * 3;
     const ax = particlePositions[i3];
@@ -728,7 +927,7 @@ function animate() {
     }
   }
 
-  // 3. Audio FFT
+  // 4. Audio FFT
   if (audioLoaded && analyser && isAudioPlaying && sound.isPlaying) {
     const freqData = analyser.getFrequencyData();
     let pianoEnergy = 0;
@@ -747,7 +946,7 @@ function animate() {
     if (strikeCooldown > 0) strikeCooldown--;
   }
 
-  // 4. Parpadeo, FBM Erosion Fade y Billboarding del Rayo del Cielo
+  // 5. Parpadeo y Fade Out del Rayo del Cielo
   const t = elapsed - strikeStart;
 
   if (boltMesh.visible) {
@@ -777,7 +976,7 @@ function animate() {
     }
   }
 
-  // 5. Sacudida de Cámara
+  // 6. Sacudida de Cámara
   if (trauma > 0) {
     const phase = elapsed * 24;
     const amp = trauma * 0.012;
@@ -791,7 +990,6 @@ function animate() {
 
 animate();
 
-// Reajuste de Ventana
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
